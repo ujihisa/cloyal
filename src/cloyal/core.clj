@@ -70,7 +70,7 @@
       (and (instance? LivingEntity entity) (.getKiller entity)) nil)))
 
 (defn game-end []
-  (prn 'cool)
+  (dosync (ref-set gaming? false))
   (doseq [player (Bukkit/getOnlinePlayers)]
     (c/broadcast
        (.getDisplayName player)
@@ -95,7 +95,7 @@
     (let [player (.getPlayer evt)]
       (when (and (.isOp player) (= (.getMessage evt) "start!"))
         (let [world (.getWorld player)]
-          (.setTime world 12500)
+          (.setTime world 13000)
           (.strikeLightningEffect world (.getLocation player))
           (swap! before-lv (constantly {}))
           (doseq [player (Bukkit/getOnlinePlayers)]
