@@ -52,6 +52,30 @@
 ;    (doseq [[gname players] @groups]
 ;      (c/broadcast "[" gname "]: " (unwords (map (memfn getDisplayName) players))))))
 
+(def points (atom {}))
+
+(defn game-end []
+  (prn 'cool)
+  (prn @points))
+
+(defn timer [sec]
+  (if (= sec 0)
+    (game-end)
+    (do
+      (c/broadcast sec " more seconds")
+      (future-call #(let [next (int (/ sec 2))]
+                      (Thread/sleep (- sec next))
+                      (timer next))))))
+
+(defn player-chat-event [evt]
+  (let [player (.getPlayer evt)]
+    (when (and (.isOp player) (= (.getMessage evt) "start!"))
+      (let [world (.getWorld player)]
+        (.setTime world 16000)
+        (.strikeLightningEffect world (.getLocation player))
+        (swap! points (constantly {}))
+        (timer 600)))))
+
 (defonce swank* nil)
 (defn on-enable [plugin]
   (when (nil? swank*)
