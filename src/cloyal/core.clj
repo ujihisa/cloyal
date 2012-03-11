@@ -52,29 +52,56 @@
 ;    (doseq [[gname players] @groups]
 ;      (c/broadcast "[" gname "]: " (unwords (map (memfn getDisplayName) players))))))
 
-(def points (atom {}))
+(def before-lv (atom {}))
+(def gaming? (ref false))
+
+(defn player-death-event [evt player]
+  (let [lv (.getLevel player)
+        new-lv (max 0 (- lv 2))
+        drop-exp (* 10 (- lv new-lv))]
+    (c/broadcast (.getDisplayName player) " died. dropped " drop-exp "exp")
+    (.setNewLevel evt new-lv)
+    (.setDroppedExp evt drop-exp)))
+
+(defn entity-death-event [evt]
+  (let [entity (.getEntity evt)]
+    (cond
+      (instance? Player entity) (player-death-event evt entity)
+      (and (instance? LivingEntity entity) (.getKiller entity)) nil)))
 
 (defn game-end []
   (prn 'cool)
-  (prn @points))
+  (doseq [player (Bukkit/getOnlinePlayers)]
+    (c/broadcast
+       (.getDisplayName player)
+       ": "
+       (+ (double (.getLevel player)) (.getExp player)))
+    (.setLevel player (get @before-lv player))))
 
 (defn timer [sec]
-  (if (= sec 0)
-    (game-end)
-    (do
-      (c/broadcast sec " more seconds")
-      (future-call #(let [next (int (/ sec 2))]
-                      (Thread/sleep (- sec next))
-                      (timer next))))))
+  (when @gaming?
+    (if (= sec 0)
+      (game-end)
+      (do
+        (if (= sec 1)
+          (c/broadcast "1 second")
+          (c/broadcast sec " more seconds"))
+        (future-call #(let [next (int (/ sec 2))]
+                        (Thread/sleep (* (- sec next) 1000))
+                        (timer next)))))))
 
 (defn player-chat-event [evt]
-  (let [player (.getPlayer evt)]
-    (when (and (.isOp player) (= (.getMessage evt) "start!"))
-      (let [world (.getWorld player)]
-        (.setTime world 16000)
-        (.strikeLightningEffect world (.getLocation player))
-        (swap! points (constantly {}))
-        (timer 600)))))
+  (when (not @gaming?)
+    (let [player (.getPlayer evt)]
+      (when (and (.isOp player) (= (.getMessage evt) "start!"))
+        (let [world (.getWorld player)]
+          (.setTime world 12500)
+          (.strikeLightningEffect world (.getLocation player))
+          (swap! before-lv (constantly {}))
+          (doseq [player (Bukkit/getOnlinePlayers)]
+            (swap! before-lv assoc player (.getLevel player)))
+          (dosync (ref-set gaming? true))
+          (timer 480))))))
 
 (defonce swank* nil)
 (defn on-enable [plugin]
